@@ -1,0 +1,11 @@
+dist/
+node_modules/
+.npm-cache/
+.DS_Store
+*.local
+.env
+.env.*
+!.env.example
+*.log
+/tests/
+/src/piano-roll/README.md

@@ -1,0 +1,20 @@
+{
+  "name": "ffxiv-performance-mode-planner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc && vite build --base ./",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@tonejs/midi": "^2.0.28",
+    "midi-file": "^1.2.4",
+    "spessasynth_lib": "^4.3.14"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vite": "^7.1.4"
+  }
+}
