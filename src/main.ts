@@ -157,10 +157,10 @@ function render(): void {
           </div>
         </aside>
         <section class="panel tracks-panel"><div class="tracks-heading"><h2>Tracks</h2><div class="track-actions">
-          <button id="deselect-all-button" class="secondary compact" ${selectedTrackCount() && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Deselect all</button>
+          <!-- <button id="deselect-all-button" class="secondary compact" ${selectedTrackCount() && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Deselect all</button> -->
           <button id="undo-edit-button" class="secondary compact" title="Undo the most recent track edit" ${editHistory.length && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Undo</button>
           <button id="merge-button" class="secondary compact" title="Merge checked tracks" ${checkedTrackCount() >= 2 && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Merge</button>
-          <button id="transpose-checked-button" class="secondary compact" title="Transpose checked tracks into C3–C6" ${checkedTrackCount() && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Transpose checked</button>
+          <!-- <button id="transpose-checked-button" class="secondary compact" title="Transpose checked tracks into C3–C6" ${checkedTrackCount() && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Transpose checked</button> -->
           <button id="delete-tracks-button" class="secondary compact track-icon-button" type="button" aria-label="Delete checked tracks" title="Delete checked tracks" ${checkedTrackCount() && !state.isPreparing && !state.isImporting ? "" : "disabled"}>${interfaceIcon("delete")}</button>
         </div><strong>${selectedTrackCount()} of ${state.parsedMidi?.summaries.length ?? 0} tracks selected for playback</strong></div>${renderTracks()}${renderCompositionStatus()}</section>
       </section>
@@ -525,9 +525,9 @@ function bindEvents(): void {
     });
   });
   document.getElementById("play-button")!.addEventListener("click", () => void play());
-  document.getElementById("deselect-all-button")!.addEventListener("click", deselectAllTracks);
+  // document.getElementById("deselect-all-button")!.addEventListener("click", deselectAllTracks);
   document.getElementById("merge-button")!.addEventListener("click", mergeTracks);
-  document.getElementById("transpose-checked-button")!.addEventListener("click", transposeCheckedTracks);
+  // document.getElementById("transpose-checked-button")!.addEventListener("click", transposeCheckedTracks);
   root.querySelectorAll<HTMLButtonElement>('button[data-action="split-drums"]').forEach(button => {
     button.addEventListener("click", () => splitDrumTrack(Number(button.dataset.track)));
   });
