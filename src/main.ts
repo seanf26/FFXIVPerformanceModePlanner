@@ -14,6 +14,7 @@ import { formatTime } from "./time";
 import { createMidiExport } from "./midi-export";
 import { originalBpm, tempoRate, MIN_BPM, MAX_BPM } from "./tempo";
 import { deleteTracks, mergeSelectedTracks, snapshotMergeState, type MergeSnapshot } from "./merge-tracks";
+import { getDrumSplit, splitDrums } from "./split-drums";
 import { lightRollColors, materialIcon, materialRollColors, updateMaterialSlider, updateMaterialSliders } from "./material";
 
 const preferences = loadPreferences();
@@ -55,7 +56,7 @@ let renderGeneration = 0;
 let seekDragging = false;
 let playbackUiFrame = 0;
 let hoveredTrack: number | null = null;
-type EditHistoryEntry = { snapshot: MergeSnapshot; checkedTracks: number[]; action: "merge" | "deletion" };
+type EditHistoryEntry = { snapshot: MergeSnapshot; checkedTracks: number[]; action: "merge" | "deletion" | "drum split" | "transpose" };
 const editHistory: EditHistoryEntry[] = [];
 const checkedTracks = new Set<number>();
 let trackObserver: ResizeObserver | null = null;
@@ -157,8 +158,9 @@ function render(): void {
         </aside>
         <section class="panel tracks-panel"><div class="tracks-heading"><h2>Tracks</h2><div class="track-actions">
           <button id="deselect-all-button" class="secondary compact" ${selectedTrackCount() && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Deselect all</button>
-          <button id="undo-edit-button" class="secondary compact" title="Undo the most recent merge or deletion" ${editHistory.length && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Undo</button>
+          <button id="undo-edit-button" class="secondary compact" title="Undo the most recent track edit" ${editHistory.length && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Undo</button>
           <button id="merge-button" class="secondary compact" title="Merge checked tracks" ${checkedTrackCount() >= 2 && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Merge</button>
+          <button id="transpose-checked-button" class="secondary compact" title="Transpose checked tracks into C3–C6" ${checkedTrackCount() && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Transpose checked</button>
           <button id="delete-tracks-button" class="secondary compact track-icon-button" type="button" aria-label="Delete checked tracks" title="Delete checked tracks" ${checkedTrackCount() && !state.isPreparing && !state.isImporting ? "" : "disabled"}>${interfaceIcon("delete")}</button>
         </div><strong>${selectedTrackCount()} of ${state.parsedMidi?.summaries.length ?? 0} tracks selected for playback</strong></div>${renderTracks()}${renderCompositionStatus()}</section>
       </section>
@@ -235,24 +237,28 @@ function renderFilePicker(filename: string | null): string {
 function renderTracks(): string {
   const parsed = state.parsedMidi;
   if (!parsed?.summaries.length) return `<div class="empty">No playable tracks loaded.</div>`;
-  const rangeActions = new Set<number>();
-  for (const summary of parsed.summaries) {
-    if (trackNeedsTranspose(summary, state.assignments[summary.index])) rangeActions.add(summary.index);
-  }
+  const buttons = parsed.summaries.map(summary => {
+    const assignment = state.assignments[summary.index];
+    const name = escapeHtml(summary.name);
+    const drumSplit = getDrumSplit(parsed.midi.tracks[summary.index]);
+    const action = assignment.autoTranspose ? "Undo transpose for" : "Transpose";
+    return drumSplit
+      ? `<button type="button" class="secondary track-transpose" data-action="split-drums" data-track="${summary.index}" ${state.isPreparing || state.isImporting ? "disabled" : ""}>Split drumset</button>`
+      : trackNeedsTranspose(summary, assignment)
+        ? `<button type="button" class="secondary track-transpose" data-action="transpose" data-track="${summary.index}" aria-disabled="${state.isPreparing || state.isImporting}" aria-label="${action} ${name}" title="${action} ${name}">${assignment.autoTranspose ? "Undo" : "Transpose"}</button>`
+        : "";
+  });
+  const hasTrackActions = buttons.some(Boolean);
   const rows = parsed.summaries.map((summary, position) => {
     const assignment = state.assignments[summary.index];
     const status = getTrackStatus(parsed.midi.tracks[summary.index], assignment);
     const name = escapeHtml(summary.name);
-    const action = assignment.autoTranspose ? "Undo transpose for" : "Transpose";
-    const button = rangeActions.has(summary.index)
-      ? `<button type="button" class="secondary track-transpose" data-action="transpose" data-track="${summary.index}" aria-disabled="${state.isPreparing || state.isImporting}" aria-label="${action} ${name}" title="${action} ${name}">${assignment.autoTranspose ? "Undo" : "Transpose"}</button>`
-      : "";
     return `<tr tabindex="0" style="--track-color: ${trackColor(position)}; --track-tint: ${trackTint(position)}; --track-excluded-hover: ${trackTint(position, .18)}" aria-selected="${isTrackSelected(assignment)}" aria-label="${name}: ${isTrackSelected(assignment) ? "included in" : "excluded from"} composition" data-action="selected" data-track="${summary.index}" class="${isTrackSelected(assignment) ? "track-selected" : "track-excluded"}">
       <td class="modification-cell"><input aria-label="Check ${name} for modification" data-action="modify" data-track="${summary.index}" type="checkbox" ${checkedTracks.has(summary.index) ? "checked" : ""} ${state.isPreparing || state.isImporting ? "disabled" : ""} /></td>
       <td><div class="track-name" title="${name}">${name}</div></td>
       <td>${summary.noteCount}</td>
-      <td>${renderRangeEndpoint(summary.minNote, assignment)}-${renderRangeEndpoint(summary.maxNote, assignment)}</td>
-      ${rangeActions.size ? `<td>${button}</td>` : ""}
+      <td>${renderRangeEndpoint(summary.minNote, assignment, summary)}-${renderRangeEndpoint(summary.maxNote, assignment, summary)}</td>
+      ${hasTrackActions ? `<td>${buttons[position]}</td>` : ""}
       <td><select aria-label="Instrument for ${name}" data-action="preset" data-track="${summary.index}">
         ${FFXIV_INSTRUMENTS.map((instrument) => `<option value="${instrument.program}" ${instrument.program === assignment.preset ? "selected" : ""}>${escapeHtml(instrument.name)}</option>`).join("")}
       </select></td>
@@ -260,7 +266,7 @@ function renderTracks(): string {
     </tr>`;
   }).join("");
   const allChecked = checkedTrackCount() === parsed.summaries.length;
-  return `<div class="table-wrap"><table><colgroup><col class="modification-column" /><col class="track-column" /><col class="notes-column" /><col class="range-column" />${rangeActions.size ? '<col class="transpose-column" />' : ""}<col class="instrument-column" /><col class="status-column" /></colgroup><thead><tr><th class="modification-cell"><input id="modify-all" type="checkbox" aria-label="Check all tracks for modification" title="Check all tracks for modification" ${allChecked ? "checked" : ""} ${state.isPreparing || state.isImporting ? "disabled" : ""} /></th><th>Track</th><th>Notes</th><th>Range</th>${rangeActions.size ? '<th scope="col" aria-label="Range actions"></th>' : ""}<th>Instrument</th><th class="status-cell">Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><colgroup><col class="modification-column" /><col class="track-column" /><col class="notes-column" /><col class="range-column" />${hasTrackActions ? '<col class="transpose-column" />' : ""}<col class="instrument-column" /><col class="status-column" /></colgroup><thead><tr><th class="modification-cell"><input id="modify-all" type="checkbox" aria-label="Check all tracks for modification" title="Check all tracks for modification" ${allChecked ? "checked" : ""} ${state.isPreparing || state.isImporting ? "disabled" : ""} /></th><th>Track</th><th>Notes</th><th>Range</th>${hasTrackActions ? '<th scope="col" aria-label="Track actions"></th>' : ""}<th>Instrument</th><th class="status-cell">Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function renderCompositionStatus(): string {
@@ -521,6 +527,10 @@ function bindEvents(): void {
   document.getElementById("play-button")!.addEventListener("click", () => void play());
   document.getElementById("deselect-all-button")!.addEventListener("click", deselectAllTracks);
   document.getElementById("merge-button")!.addEventListener("click", mergeTracks);
+  document.getElementById("transpose-checked-button")!.addEventListener("click", transposeCheckedTracks);
+  root.querySelectorAll<HTMLButtonElement>('button[data-action="split-drums"]').forEach(button => {
+    button.addEventListener("click", () => splitDrumTrack(Number(button.dataset.track)));
+  });
   document.getElementById("delete-tracks-button")!.addEventListener("click", deleteCheckedTracks);
   document.getElementById("undo-edit-button")!.addEventListener("click", undoEdit);
   document.getElementById("export-button")!.addEventListener("click", exportMidi);
@@ -570,8 +580,8 @@ async function refreshTranspose(): Promise<void> {
 function canPreview(): boolean {
   return Boolean(state.parsedMidi?.summaries.length && (state.isPlaying || Object.values(state.assignments).some(isTrackSelected)) && !state.isPreparing && !state.isImporting);
 }
-function renderRangeEndpoint(note: number, assignment: TrackAssignment): string {
-  const { label, className, message } = rangeEndpoint(note, assignment, false);
+function renderRangeEndpoint(note: number, assignment: TrackAssignment, range: { minNote: number; maxNote: number }): string {
+  const { label, className, message } = rangeEndpoint(note, assignment, false, range);
   if (!className) return escapeHtml(label);
   return `<strong class="${className}" tabindex="0" title="${escapeHtml(message)}" aria-label="${escapeHtml(message)}">${escapeHtml(label)}</strong>`;
 }
@@ -648,6 +658,24 @@ function deselectAllTracks(): void {
   player.updateAssignments(state.assignments);
   render();
 }
+function transposeCheckedTracks(): void {
+  if (!state.parsedMidi || state.isPreparing || state.isImporting) return;
+  const updates = state.parsedMidi.summaries.filter(summary => {
+    const assignment = state.assignments[summary.index];
+    return checkedTracks.has(summary.index) && !assignment.autoTranspose && trackNeedsTranspose(summary, assignment);
+  });
+  if (!updates.length) {
+    setMessage("No checked tracks need transposing.");
+    render();
+    return;
+  }
+  const snapshot = snapshotMergeState(state.parsedMidi.midi, state.assignments);
+  editHistory.push({ snapshot, checkedTracks: [...checkedTracks], action: "transpose" });
+  for (const { index } of updates) state.assignments[index].autoTranspose = true;
+  setMessage(`Transposed ${updates.length === 1 ? "one track" : `${updates.length} tracks`}.`);
+  void refreshTranspose();
+}
+
 function mergeTracks(): void {
   if (!state.parsedMidi || checkedTrackCount() < 2) return;
   pianoRoll?.highlightTrack(null);
@@ -683,6 +711,27 @@ function deleteCheckedTracks(): void {
   state.assignments = result.assignments;
   checkedTracks.clear();
   setMessage(`Deleted ${result.count} ${result.count === 1 ? "track" : "tracks"}.`);
+  render();
+}
+function splitDrumTrack(index: number): void {
+  if (!state.parsedMidi || state.isPreparing || state.isImporting) return;
+  const split = getDrumSplit(state.parsedMidi.midi.tracks[index]);
+  if (!split) return;
+  const counts = split.parts.map(part => `${part.name} (${part.notes.length} hits)`).join(" and ");
+  const omitted = split.dropped ? ` This removes ${split.dropped} other percussion hits.` : "";
+  const action = split.parts.length === 1 ? "Keep only" : "Split into";
+  if (!window.confirm(`${action} ${counts}?${omitted}`)) return;
+  try {
+    const snapshot = snapshotMergeState(state.parsedMidi.midi, state.assignments);
+    const result = splitDrums(state.parsedMidi, state.assignments, index);
+    resetPlayback();
+    pianoRoll?.highlightTrack(null);
+    editHistory.push({ snapshot, checkedTracks: [...checkedTracks], action: "drum split" });
+    state.parsedMidi = result.parsed;
+    state.assignments = result.assignments;
+    checkedTracks.clear();
+    setMessage(`Created ${counts}.${omitted}`);
+  } catch (error) { setMessage(errorMessage(error), true); }
   render();
 }
 function undoEdit(): void {

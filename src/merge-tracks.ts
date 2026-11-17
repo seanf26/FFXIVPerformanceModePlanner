@@ -2,8 +2,8 @@ import { Midi } from "@tonejs/midi";
 import type { ParsedMidi } from "./midi-analysis";
 import { summarizeMidi } from "./midi-analysis";
 import type { TrackAssignment } from "./types";
-import { adaptNote } from "./auto-transpose";
-import { isTrackSelected, shouldAutoTranspose } from "./composition";
+import { noteRange, pitchMapper } from "./auto-transpose";
+import { isTrackSelected } from "./composition";
 import { stripExpression } from "./strip-expression";
 
 export type MergeSnapshot = { midi: Midi; assignments: Record<number, TrackAssignment> };
@@ -29,10 +29,10 @@ export function mergeSelectedTracks(parsed: ParsedMidi, assignments: Record<numb
   const firstAssignment = assignments[first];
   const labels = new Map(parsed.summaries.map(s => [s.index, s.name]));
   target.notes = selected.flatMap(index => {
-    const assignment = assignments[index];
-    return midi.tracks[index].notes.map(note => {
-      const pitch = note.midi + assignment.transpose;
-      const adapted = shouldAutoTranspose(assignment) ? adaptNote(pitch) : pitch;
+    const notes = midi.tracks[index].notes;
+    const pitch = pitchMapper(noteRange(notes), assignments[index]);
+    return notes.map(note => {
+      const adapted = pitch(note.midi);
       if (adapted < 0 || adapted > 127) throw new Error("Merged notes must remain within the MIDI range.");
       note.midi = adapted;
       return note;

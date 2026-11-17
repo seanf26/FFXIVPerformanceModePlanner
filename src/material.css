@@ -262,12 +262,16 @@ html[data-appearance="material"] .grid > aside > .playback-panel { align-content
   --instrument-width: clamp(148px, min(30cqi, calc(100cqi - var(--fixed-column-width) - var(--track-name-width))), 268px);
   min-width: calc(var(--fixed-column-width) + var(--track-name-width) + var(--instrument-width));
 }
-[data-appearance="material"] .table-wrap table:has(.transpose-column) { --fixed-column-width: 332px; }
+[data-appearance="material"] .table-wrap table:has(.transpose-column) {
+  --track-action-width: 98px;
+  --fixed-column-width: calc(234px + var(--track-action-width));
+}
+[data-appearance="material"] .table-wrap table:has([data-action="split-drums"]) { --track-action-width: 122px; }
 [data-appearance="material"] .table-wrap .modification-column { width: 42px; }
 [data-appearance="material"] .table-wrap .track-column { width: var(--track-name-width); }
 [data-appearance="material"] .table-wrap .notes-column { width: 52px; }
 [data-appearance="material"] .table-wrap .range-column { width: 88px; }
-[data-appearance="material"] .table-wrap .transpose-column { width: 98px; }
+[data-appearance="material"] .table-wrap .transpose-column { width: var(--track-action-width); }
 [data-appearance="material"] .table-wrap .instrument-column { width: var(--instrument-width); }
 [data-appearance="material"] .table-wrap :is(.status-column, .status-cell) { width: auto; text-align: start; }
 [data-appearance="material"] button.track-transpose { width: 100%; min-height: var(--track-control-height); padding: 3px 8px; }

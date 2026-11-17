@@ -1,6 +1,7 @@
 import { Midi, type Track } from "@tonejs/midi";
 import { parseMidi as parseEvents, writeMidi } from "midi-file";
 import type { TrackSummary } from "./types";
+import { noteRange } from "./auto-transpose";
 
 export type ParsedMidi = {
   midi: Midi;
@@ -51,19 +52,12 @@ export function summarizeMidi(midi: Midi): TrackSummary[] {
   const summaries: TrackSummary[] = [];
   midi.tracks.forEach((track, index) => {
     if (!track.notes.length) return;
-    let minNote = Infinity;
-    let maxNote = -Infinity;
-    for (const note of track.notes) {
-      minNote = Math.min(minNote, note.midi);
-      maxNote = Math.max(maxNote, note.midi);
-    }
     summaries.push({
       index,
       name: track.name || `Track ${index + 1}`,
       program: track.instrument.number,
       noteCount: track.notes.length,
-      minNote,
-      maxNote,
+      ...noteRange(track.notes),
     });
   });
   return summaries;

@@ -1,6 +1,5 @@
 import type { Track } from "@tonejs/midi";
-import { adaptNote } from "./auto-transpose";
-import { shouldAutoTranspose } from "./composition";
+import { noteRange, pitchMapper } from "./auto-transpose";
 import { FFXIV_MAX_NOTE, FFXIV_MIN_NOTE } from "./ffxiv";
 import type { TrackAssignment } from "./types";
 
@@ -23,10 +22,10 @@ export function getTrackStatus(track: Track, assignment: TrackAssignment): Track
   let dropped = 0;
   const acceptedStarts = new Map<number, number>();
   let previousAcceptedStart = -Infinity;
+  const mapPitch = pitchMapper(noteRange(track.notes), assignment);
 
   for (const note of [...track.notes].sort((a, b) => a.ticks - b.ticks)) {
-    const shifted = note.midi + assignment.transpose;
-    const pitch = shouldAutoTranspose(assignment) ? adaptNote(shifted) : shifted;
+    const pitch = mapPitch(note.midi);
     if (pitch < FFXIV_MIN_NOTE || pitch > FFXIV_MAX_NOTE) {
       outOfRange++;
       continue;

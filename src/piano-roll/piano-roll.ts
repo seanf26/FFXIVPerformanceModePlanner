@@ -1,9 +1,9 @@
 import "./piano-roll.css";
 import type { ParsedMidi } from "../midi-analysis";
 import type { TrackAssignment } from "../types";
-import { adaptNote } from "../auto-transpose";
+import { pitchMapper } from "../auto-transpose";
 import { FFXIV_MIN_NOTE, noteName } from "../ffxiv";
-import { isTrackSelected, shouldAutoTranspose } from "../composition";
+import { isTrackSelected } from "../composition";
 import { createFollowController } from "./follow";
 import { DEFAULT_PREFERENCES, loadPreferences, savePreferences } from "../preferences";
 import { trackColor, DIMMED_NOTE_OPACITY } from "../track-presentation";
@@ -269,11 +269,14 @@ export function createPianoRoll(
     ctx.save(); ctx.beginPath(); ctx.rect(KEYBOARD, RULER, w - KEYBOARD, h - RULER); ctx.clip();
     hits = [];
     const labels: NoteLabel[] = [];
+    const pitches = new Map(snapshot.parsed?.summaries.map(summary => [
+      summary.index, pitchMapper(summary, snapshot.assignments[summary.index], snapshot.autoTranspose),
+    ]));
     for (const note of notes) {
       const assignment = snapshot.assignments[note.track];
       if (!isTrackSelected(assignment)) continue;
       const original = note.pitch + (assignment?.transpose ?? 0);
-      const pitch = shouldAutoTranspose(assignment, snapshot.autoTranspose) ? adaptNote(original) : original;
+      const pitch = pitches.get(note.track)!(note.pitch);
       const moved = pitch !== original;
       const outOfRange = pitch < 48 || pitch > 84;
       const x = KEYBOARD + note.start * scale - left, y = RULER + (127 - pitch) * row - top;
@@ -297,8 +300,7 @@ export function createPianoRoll(
         if (note.track !== highlightedTrack) continue;
         const assignment = snapshot.assignments[note.track];
         const included = isTrackSelected(assignment);
-        const original = note.pitch + (assignment?.transpose ?? 0);
-        const pitch = shouldAutoTranspose(assignment, snapshot.autoTranspose) ? adaptNote(original) : original;
+        const pitch = pitches.get(note.track)!(note.pitch);
         const x = KEYBOARD + note.start * scale - left, y = RULER + (127 - pitch) * row - top;
         const nw = Math.max(2, (note.end - note.start) * scale);
         if (x + nw < KEYBOARD || x > w || y + row < RULER || y > h) continue;

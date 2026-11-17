@@ -1,6 +1,5 @@
-import { adaptNote } from "./auto-transpose";
+import { pitchMapper } from "./auto-transpose";
 import { FFXIV_MIN_NOTE, FFXIV_MAX_NOTE, noteName } from "./ffxiv";
-import { shouldAutoTranspose } from "./composition";
 import type { TrackAssignment, TrackSummary } from "./types";
 
 const TRACK_COLORS = [
@@ -20,9 +19,8 @@ export function trackNeedsTranspose(summary: TrackSummary, assignment: TrackAssi
     summary.maxNote + assignment.transpose > FFXIV_MAX_NOTE;
 }
 
-export function rangeEndpoint(note: number, assignment: TrackAssignment, allTracks: boolean) {
-  const shifted = note + assignment.transpose;
-  const effective = shouldAutoTranspose(assignment, allTracks) ? adaptNote(shifted) : shifted;
+export function rangeEndpoint(note: number, assignment: TrackAssignment, allTracks: boolean, range = { minNote: note, maxNote: note }) {
+  const effective = pitchMapper(range, assignment, allTracks)(note);
   const playable = effective >= FFXIV_MIN_NOTE && effective <= FFXIV_MAX_NOTE;
   const label = noteName(note);
   if (!playable) return { label, className: "range-warning", message: `${noteName(effective)} is ${effective < FFXIV_MIN_NOTE ? "below" : "above"} the playable range C3-C6.` };

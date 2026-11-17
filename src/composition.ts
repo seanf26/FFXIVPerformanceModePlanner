@@ -1,15 +1,11 @@
 import { Midi } from "@tonejs/midi";
 import type { TrackAssignment } from "./types";
 import { FFXIV_INSTRUMENTS } from "./ffxiv";
-import { adaptNote } from "./auto-transpose";
+import { noteRange, pitchMapper } from "./auto-transpose";
 import { stripExpression } from "./strip-expression";
 
 export function isTrackSelected(assignment?: Partial<TrackAssignment>): boolean {
   return assignment?.selected !== false;
-}
-
-export function shouldAutoTranspose(assignment?: Partial<TrackAssignment>, allTracks = false): boolean {
-  return allTracks || assignment?.autoTranspose === true;
 }
 
 export function setSelectedTranspose(assignments: Record<number, TrackAssignment>, enabled: boolean, indexes?: Set<number>): void {
@@ -27,9 +23,9 @@ export function createCompositionMidi(source: Midi, assignments: Record<number, 
     track.name = FFXIV_INSTRUMENTS.find(i => i.program === assignment.preset)?.name ?? track.name;
     track.instrument.number = assignment.preset;
     stripExpression(track);
+    const pitch = pitchMapper(noteRange(track.notes), assignment, autoTranspose);
     for (const note of track.notes) {
-      const pitch = note.midi + assignment.transpose;
-      const adapted = shouldAutoTranspose(assignment, autoTranspose) ? adaptNote(pitch) : pitch;
+      const adapted = pitch(note.midi);
       if (adapted < 0 || adapted > 127) throw new Error(`Track ${track.name} has notes outside the MIDI range.`);
       note.midi = adapted;
       note.velocity = 100 / 127;

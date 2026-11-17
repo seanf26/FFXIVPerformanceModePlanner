@@ -2,8 +2,8 @@ import { Midi } from "@tonejs/midi";
 import { FFXIV_MAX_NOTE, FFXIV_MIN_NOTE } from "./ffxiv";
 import type { ConstraintMode, TrackAssignment } from "./types";
 import { routeTracks } from "./playback/routing";
-import { adaptNote } from "./auto-transpose";
-import { isTrackSelected, shouldAutoTranspose } from "./composition";
+import { noteRange, pitchMapper } from "./auto-transpose";
+import { isTrackSelected } from "./composition";
 import { stripExpression } from "./strip-expression";
 
 export const PREVIEW_RULES = { constraintMode: "drop", simultaneousLimit: 1, minGapMs: 120 } as const;
@@ -28,12 +28,12 @@ export function createConstrainedMidi(source: Midi, options: ConstrainOptions): 
     stripExpression(track);
 
     const filtered = [];
+    const pitch = pitchMapper(noteRange(track.notes), assignment, options.autoTranspose);
 
     for (const note of [...track.notes].sort((a, b) => a.ticks - b.ticks)) {
       note.velocity = 100 / 127;
       note.noteOffVelocity = 0;
-      const transposed = note.midi + assignment.transpose;
-      const shifted = shouldAutoTranspose(assignment, options.autoTranspose) ? adaptNote(transposed) : transposed;
+      const shifted = pitch(note.midi);
       if (shifted < FFXIV_MIN_NOTE || shifted > FFXIV_MAX_NOTE) {
         if (options.constraintMode === "drop") continue;
         note.midi = Math.min(FFXIV_MAX_NOTE, Math.max(FFXIV_MIN_NOTE, shifted));
