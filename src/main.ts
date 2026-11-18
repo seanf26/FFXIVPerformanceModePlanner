@@ -553,10 +553,9 @@ function openTrackMenu(button: HTMLButtonElement, index: number): void {
       label: direction === 1 ? "Octave up" : "Octave down",
       enabled: octaveAllowed(track, assignment, direction),
       run: () => {
-        resetPlayback();
         shiftOctave(track, assignment, direction);
         state.parsedMidi = { midi: parsed.midi, summaries: summarizeMidi(parsed.midi) };
-        render();
+        void refreshTranspose();
       },
     })),
   ];
