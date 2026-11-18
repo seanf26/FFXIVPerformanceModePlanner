@@ -55,6 +55,11 @@ export function createConstrainedMidi(source: Midi, options: ConstrainOptions): 
       previousAcceptedStart = startBucket;
       return true;
     });
+    for (let i = 0; i < track.notes.length - 1; i++) {
+      const note = track.notes[i];
+      const next = track.notes[i + 1];
+      note.durationTicks = Math.min(note.durationTicks, next.ticks - note.ticks);
+    }
   }
 
   midi.tracks = midi.tracks.filter((_, index) => options.assignments[index] !== undefined && isTrackSelected(options.assignments[index]));
