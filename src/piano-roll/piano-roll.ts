@@ -77,10 +77,10 @@ export function createPianoRoll(
   element.className = "piano-roll";
   element.innerHTML = `<div class="roll-toolbar">
     <h2>Piano roll</h2>
-    <label><span>Time zoom</span> <input aria-label="Time zoom" type="range" min="25" max="250" value="${initialTimeZoom}"></label>
-    <label><span>Pitch zoom</span> <input aria-label="Pitch zoom" type="range" min="8" max="26" value="${initialPitchZoom}"></label>
+    <label class="time-zoom"><span>Time zoom</span> <input aria-label="Time zoom" type="range" min="25" max="250" value="${initialTimeZoom}"></label>
+    <label class="pitch-zoom"><span>Pitch zoom</span> <input aria-label="Pitch zoom" type="range" min="8" max="26" value="${initialPitchZoom}"></label>
     <button class="secondary zoom-reset" type="button" aria-label="Reset zoom" title="Reset zoom" ${initialTimeZoom === DEFAULT_TIME_ZOOM && initialPitchZoom === DEFAULT_PITCH_ZOOM ? "disabled" : ""}><svg width="18" height="18" fill="none" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.207 2.543a1 1 0 0 1 0 1.414L5.414 5.75h7.836a8 8 0 1 1-8 8 1 1 0 1 1 2 0 6 6 0 1 0 6-6H5.414l1.793 1.793a1 1 0 0 1-1.414 1.414l-3.5-3.5a1 1 0 0 1 0-1.414l3.5-3.5a1 1 0 0 1 1.414 0Z" fill="currentColor" /></svg></button>
-    <label><input type="checkbox" checked> <span>Follow playback</span></label><output class="roll-clock">0:00</output>
+    <label class="follow-playback"><input type="checkbox" checked> <span>Follow playback</span></label><output class="roll-clock">0:00</output>
     </div><div class="roll-viewport" tabindex="0" aria-label="MIDI piano roll. Scroll horizontally for time and vertically for pitch.">
       <div class="roll-space"></div><canvas aria-label="Layered MIDI notes"></canvas>
     </div>`;
@@ -330,9 +330,9 @@ export function createPianoRoll(
       const x = KEYBOARD + sec * scale - left;
       if (x >= KEYBOARD) ctx.fillText(sec < 60 ? `${sec}s` : formatTime(sec), x + 4, 16);
     }
-    if (!source) { ctx.fillStyle = "#e0e8e9"; ctx.fillText("No MIDI loaded", KEYBOARD + 20, 60); }
+    if (!source) { ctx.fillStyle = colors.rulerText; ctx.fillText("No MIDI loaded", KEYBOARD + 20, 60); }
     else if (!source.summaries.some(s => isTrackSelected(snapshot.assignments[s.index]))) {
-      ctx.fillStyle = "#e0e8e9"; ctx.fillText("No tracks selected — include a track above", KEYBOARD + 20, 60);
+      ctx.fillStyle = colors.rulerText; ctx.fillText("No tracks selected — include a track above", KEYBOARD + 20, 60);
     }
     updateHover();
   }
