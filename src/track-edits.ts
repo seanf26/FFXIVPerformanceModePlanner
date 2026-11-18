@@ -53,15 +53,29 @@ export function strumTrack(source: Midi, index: number, rate: number) {
     notes.sort((a, b) => a.midi - b.midi);
     const start = midi.header.ticksToSeconds(ticks);
     const next = chords[index + 1]?.[0] ?? source.durationTicks;
-    const end = Math.min(midi.header.ticksToSeconds(next), ...notes.map(note => note.time + note.duration));
+    const endTick = Math.min(next, ...notes.map(note => note.ticks + note.durationTicks));
+    const window = midi.header.ticksToSeconds(endTick) - start;
     const gap = .125 * rate;
-    const count = Math.max(1, Math.min(notes.length, Math.floor((end - start + .000001) / gap)));
+    const hold = Math.min(window, Math.max(gap, window / 2));
+    const count = Math.min(notes.length, 1 + Math.floor((window - hold + .000001) / gap));
     removed += notes.length - count;
-    return Array.from({ length: count }, (_, i) => {
-      const note = notes[count === 1 ? 0 : Math.round(i * (notes.length - 1) / (count - 1))];
-      const finish = Math.min(note.ticks + note.durationTicks, next);
-      note.ticks = midi.header.secondsToTicks(start + i * gap);
-      note.durationTicks = Math.max(1, finish - note.ticks);
+    const selected = [notes[notes.length - 1]];
+    if (count > 1) {
+      selected.unshift(notes[0]);
+      const middle = notes.slice(1, -1);
+      const pitches = new Set(selected.map(note => note.midi % 12));
+      while (selected.length < count) {
+        const distinct = middle.findIndex(note => !pitches.has(note.midi % 12));
+        const [note] = middle.splice(Math.max(0, distinct), 1);
+        selected.push(note);
+        pitches.add(note.midi % 12);
+      }
+      selected.sort((a, b) => a.midi - b.midi);
+    }
+    const starts = selected.map((_, i) => i === 0 ? ticks : midi.header.secondsToTicks(start + i * gap));
+    return selected.map((note, i) => {
+      note.ticks = starts[i];
+      note.durationTicks = (starts[i + 1] ?? endTick) - note.ticks;
       return note;
     });
   });

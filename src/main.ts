@@ -636,8 +636,8 @@ function openStrumDialog(index: number): void {
   dialog.className = "track-edit-dialog";
   dialog.setAttribute("aria-labelledby", "strum-title");
   dialog.innerHTML = `<h2 id="strum-title">Strum chords</h2>
-    <p>${result.changed} chords, low to high, with 125 ms between notes at the current tempo.</p>
-    <p>${result.removed} notes removed to fit before the next chord or note ending.</p>
+    <p>Step through ${result.changed} chords from low to high, then hold the last note.</p>
+    <p>Remove ${result.removed} notes to leave room for the hold.</p>
     <div class="dialog-actions"><button class="secondary" data-strum="cancel">Cancel</button><button data-strum="apply">Apply</button></div>`;
   dialog.querySelector('[data-strum="apply"]')!.addEventListener("click", () => {
     state.assignments[index].unstrummedNotes = parsed.midi.tracks[index].notes.map(
