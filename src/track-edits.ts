@@ -15,6 +15,12 @@ export function hasChords(track: Track): boolean {
 export function shiftOctave(track: Track, assignment: TrackAssignment, direction: number): void {
   if (!octaveAllowed(track, assignment, direction)) throw new Error("The octave shift would exceed C3–C6.");
   const pitch = pitchMapper(noteRange(track.notes), assignment);
+  const range = noteRange(track.notes.map(note => ({ midi: pitch(note.midi) })));
+  const previous = !assignment.autoTranspose && !assignment.transpose ? assignment.octaveShift : undefined;
+  const octaves = (previous?.octaves ?? 0) + direction;
+  assignment.octaveShift = octaves ? {
+    octaves, minNote: previous?.minNote ?? range.minNote, maxNote: previous?.maxNote ?? range.maxNote,
+  } : undefined;
   for (const note of track.notes) note.midi = pitch(note.midi) + direction * 12;
   for (const note of assignment.unstrummedNotes ?? []) note.midi = pitch(note.midi) + direction * 12;
   assignment.transpose = 0;

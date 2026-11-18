@@ -27,3 +27,14 @@ export function rangeEndpoint(note: number, assignment: TrackAssignment, allTrac
   if (effective !== note) return { label, className: "range-transposed", message: `Currently transposed: ${label} → ${noteName(effective)} (within playable range).` };
   return { label, className: "", message: "" };
 }
+
+export function shiftedRange(range: { minNote: number; maxNote: number }, assignment: TrackAssignment) {
+  const shift = assignment.octaveShift;
+  if (!shift) return null;
+  const label = `${noteName(range.minNote)}–${noteName(range.maxNote)}*`;
+  const count = Math.abs(shift.octaves);
+  const message = `Shifted ${shift.octaves > 0 ? "up" : "down"} ${count} octave${count === 1 ? "" : "s"} · Original range: ${noteName(shift.minNote)}–${noteName(shift.maxNote)} · Current range: ${noteName(range.minNote)}–${noteName(range.maxNote)}`;
+  const warning = rangeEndpoint(range.minNote, assignment, false, range).className === "range-warning" ||
+    rangeEndpoint(range.maxNote, assignment, false, range).className === "range-warning";
+  return { label, message, className: warning ? "range-warning" : "range-octave-shifted" };
+}

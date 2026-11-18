@@ -5,6 +5,7 @@ export type TrackAssignment = {
   preset: number;
   transpose: number;
   autoTranspose: boolean;
+  octaveShift?: { octaves: number; minNote: number; maxNote: number };
   unstrummedNotes?: { midi: number; ticks: number; durationTicks: number; velocity: number; noteOffVelocity: number }[];
 };
 

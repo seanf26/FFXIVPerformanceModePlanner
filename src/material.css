@@ -469,3 +469,7 @@ html[data-appearance="material"] :is(.table-wrap, .roll-viewport) {
 [data-appearance="material"] button.track-edit.has-suggestion { background: var(--primary-container); color: var(--on-primary-container); box-shadow: inset 0 0 0 1px var(--primary); }
 .track-edit-menu button.suggested-action { color: var(--primary, #d2bcff); }
 .menu-hint { display: block; font-size: 11px; line-height: 16px; color: var(--on-surface-variant, #d0c3d7); }
+
+[data-appearance="material"] .range-octave-shifted { color: #8bdae5; cursor: help; }
+[data-appearance="material"][data-theme="light"] .range-octave-shifted { color: #006875; }
+[data-appearance="material"] .range-octave-shifted:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }

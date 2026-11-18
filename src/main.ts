@@ -7,7 +7,7 @@ import type { TrackAssignment } from "./types";
 import { createPianoRoll } from "./piano-roll/piano-roll";
 import { isTrackSelected } from "./composition";
 import { bindTrackSelection } from "./track-selection";
-import { rangeEndpoint, trackColor, trackNeedsTranspose, trackTint } from "./track-presentation";
+import { shiftedRange, rangeEndpoint, trackColor, trackNeedsTranspose, trackTint } from "./track-presentation";
 import { combineTrackStatuses, getTrackStatus, type TrackStatus } from "./track-status";
 import { loadPreferences, savePreferences } from "./preferences";
 import { formatTime } from "./time";
@@ -248,7 +248,7 @@ function renderTracks(): string {
       <td class="modification-cell"><input aria-label="Check ${name} for modification" data-action="modify" data-track="${summary.index}" type="checkbox" ${checkedTracks.has(summary.index) ? "checked" : ""} ${state.isPreparing || state.isImporting ? "disabled" : ""} /></td>
       <td><div class="track-name" title="${name}">${name}</div></td>
       <td>${summary.noteCount}</td>
-      <td>${renderRangeEndpoint(summary.minNote, assignment, summary)}-${renderRangeEndpoint(summary.maxNote, assignment, summary)}</td>
+      <td>${renderTrackRange(summary, assignment)}</td>
       <td><select aria-label="Instrument for ${name}" data-action="preset" data-track="${summary.index}">
         ${FFXIV_INSTRUMENTS.map((instrument) => `<option value="${instrument.program}" ${instrument.program === assignment.preset ? "selected" : ""}>${escapeHtml(instrument.name)}</option>`).join("")}
       </select></td>
@@ -668,6 +668,12 @@ async function refreshTranspose(): Promise<void> {
 function canPreview(): boolean {
   return Boolean(state.parsedMidi?.summaries.length && (state.isPlaying || Object.values(state.assignments).some(isTrackSelected)) && !state.isPreparing && !state.isImporting);
 }
+function renderTrackRange(range: { minNote: number; maxNote: number }, assignment: TrackAssignment): string {
+  const shifted = shiftedRange(range, assignment);
+  if (!shifted) return `${renderRangeEndpoint(range.minNote, assignment, range)}-${renderRangeEndpoint(range.maxNote, assignment, range)}`;
+  return `<strong class="${shifted.className}" tabindex="0" title="${escapeHtml(shifted.message)}" aria-label="${escapeHtml(shifted.message)}">${escapeHtml(shifted.label)}</strong>`;
+}
+
 function renderRangeEndpoint(note: number, assignment: TrackAssignment, range: { minNote: number; maxNote: number }): string {
   const { label, className, message } = rangeEndpoint(note, assignment, false, range);
   if (!className) return escapeHtml(label);
