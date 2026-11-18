@@ -32,6 +32,24 @@ export const FFXIV_INSTRUMENTS = [
   { name: "Electric Guitar: Special", program: 31 },
 ];
 
+export function suggestedInstrument(program: number, name = "", percussion = false): number {
+  if (percussion) return 0;
+  const named = FFXIV_INSTRUMENTS.find(instrument => instrument.name.toLowerCase() === name.toLowerCase());
+  if (named) return named.program;
+  if (program <= 7) return 0;
+  if (program >= 24 && program <= 26) return 25;
+  if (program >= 32 && program <= 39) return 43;
+  if (program >= 48 && program <= 51) return 40;
+  if (program === 59) return 56;
+  if (program === 61) return 60;
+  if (program >= 62 && program <= 63) return 56;
+  if (program >= 64 && program <= 67) return 65;
+  if (program === 69) return 68;
+  if (program === 70) return 71;
+  if (program === 74) return 72;
+  return FFXIV_INSTRUMENTS.some(instrument => instrument.program === program) && program < 96 ? program : 0;
+}
+
 export function noteName(midi: number): string {
   const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   return `${names[midi % 12]}${Math.floor(midi / 12) - 1}`;

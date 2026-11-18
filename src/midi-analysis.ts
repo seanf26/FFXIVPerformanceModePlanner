@@ -17,6 +17,11 @@ export function parseMidi(bytes: Uint8Array): ParsedMidi {
         header: { ...raw.header, format: 0, numTracks: 1 }, tracks: [events],
       })));
       part.header.fromJSON(midi.header.toJSON());
+      const instrumentName = events.find(event => event.type === "instrumentName");
+      for (const track of part.tracks) {
+        track.name = cleanName(track.name) ||
+          (instrumentName?.type === "instrumentName" ? cleanName(instrumentName.text) : "");
+      }
       part.tracks = filterNotationAuxiliaries(part.tracks);
       const sounding = part.tracks.filter((track) => track.notes.length);
       const strings = sounding.filter((track) => track.channel !== 9 &&
@@ -54,13 +59,21 @@ export function summarizeMidi(midi: Midi): TrackSummary[] {
     if (!track.notes.length) return;
     summaries.push({
       index,
-      name: track.name || `Track ${index + 1}`,
+      name: cleanName(track.name) || (track.channel === 9 ? "Drumset" : instrumentLabel(track)),
       program: track.instrument.number,
       noteCount: track.notes.length,
       ...noteRange(track.notes),
     });
   });
   return summaries;
+}
+
+function cleanName(name: string): string {
+  return name.replaceAll("\u0000", "").trim();
+}
+
+function instrumentLabel(track: Track): string {
+  return track.instrument.name.replace(/\b\w/g, letter => letter.toUpperCase()) || "Piano";
 }
 
 export function filterNotationAuxiliaries(tracks: Track[]): Track[] {

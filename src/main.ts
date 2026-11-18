@@ -1,6 +1,6 @@
 import "./styles.css";
 import { createConstrainedMidi, PREVIEW_RULES } from "./constrain-midi";
-import { FFXIV_INSTRUMENTS } from "./ffxiv";
+import { FFXIV_INSTRUMENTS, suggestedInstrument } from "./ffxiv";
 import { parseMidi, summarizeMidi, type ParsedMidi } from "./midi-analysis";
 import { SpessaPlayer } from "./playback/spessa-player";
 import type { TrackAssignment } from "./types";
@@ -302,7 +302,8 @@ async function importMidi(file: File): Promise<void> {
     for (const summary of parsed.summaries) {
       state.assignments[summary.index] = {
         selected: true,
-        preset: FFXIV_INSTRUMENTS.some((instrument) => instrument.program === summary.program) ? summary.program : 0,
+        preset: suggestedInstrument(summary.program, parsed.midi.tracks[summary.index].name,
+          parsed.midi.tracks[summary.index].channel === 9),
         transpose: 0,
         autoTranspose: false,
       };
