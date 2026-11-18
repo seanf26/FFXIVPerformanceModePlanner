@@ -246,15 +246,14 @@ function renderTracks(): string {
       !assignment.autoTranspose && trackNeedsTranspose(summary, assignment) ? "transpose" : null;
     return `<tr tabindex="0" style="--track-color: ${trackColor(position)}; --track-tint: ${trackTint(position)}; --track-excluded-hover: ${trackTint(position, .18)}" aria-selected="${isTrackSelected(assignment)}" aria-label="${name}: ${isTrackSelected(assignment) ? "included in" : "excluded from"} composition" data-action="selected" data-track="${summary.index}" class="${isTrackSelected(assignment) ? "track-selected" : "track-excluded"}">
       <td class="modification-cell"><input aria-label="Check ${name} for modification" data-action="modify" data-track="${summary.index}" type="checkbox" ${checkedTracks.has(summary.index) ? "checked" : ""} ${state.isPreparing || state.isImporting ? "disabled" : ""} /></td>
-      <td><div class="track-label"><div class="track-name" title="${name}">${name}</div>
-        ${suggestion ? `<button type="button" class="secondary track-suggestion" data-action="${suggestion}" data-track="${summary.index}" aria-label="${suggestion === "split-drums" ? "Split drumset" : "Transpose"} ${name}" ${state.isPreparing || state.isImporting ? "disabled" : ""}>${suggestion === "split-drums" ? "Split" : "Transpose"}</button>` : ""}</div></td>
+      <td><div class="track-name" title="${name}">${name}</div></td>
       <td>${summary.noteCount}</td>
       <td>${renderRangeEndpoint(summary.minNote, assignment, summary)}-${renderRangeEndpoint(summary.maxNote, assignment, summary)}</td>
       <td><select aria-label="Instrument for ${name}" data-action="preset" data-track="${summary.index}">
         ${FFXIV_INSTRUMENTS.map((instrument) => `<option value="${instrument.program}" ${instrument.program === assignment.preset ? "selected" : ""}>${escapeHtml(instrument.name)}</option>`).join("")}
       </select></td>
       <td class="status-cell">${renderTrackStatus(status)}</td>
-      <td><button type="button" class="secondary track-edit" data-action="edit" data-track="${summary.index}" aria-haspopup="menu" aria-expanded="false" aria-label="Edit ${name}" ${state.isPreparing || state.isImporting ? "disabled" : ""}>Edit ${expandIcon}</button></td>
+      <td><button type="button" class="secondary track-edit ${suggestion ? "has-suggestion" : ""}" title="${suggestion === "split-drums" ? "Suggested: split drumset" : suggestion ? "Suggested: transpose to range" : "Track options"}" data-action="edit" data-track="${summary.index}" aria-haspopup="menu" aria-expanded="false" aria-label="Edit ${name}" ${state.isPreparing || state.isImporting ? "disabled" : ""}>Edit ${expandIcon}</button></td>
     </tr>`;
   }).join("");
   const allChecked = checkedTrackCount() === parsed.summaries.length;
@@ -512,17 +511,6 @@ function bindEvents(): void {
   root.querySelectorAll<HTMLButtonElement>('button[data-action="edit"]').forEach(button => {
     button.addEventListener("click", () => openTrackMenu(button, Number(button.dataset.track)));
   });
-  root.querySelectorAll<HTMLButtonElement>("button.track-suggestion").forEach(button => {
-    button.addEventListener("click", () => {
-      if (state.isPreparing || state.isImporting) return;
-      const index = Number(button.dataset.track);
-      if (button.dataset.action === "split-drums") splitDrumTrack(index);
-      else {
-        state.assignments[index].autoTranspose = true;
-        void refreshTranspose();
-      }
-    });
-  });
   document.getElementById("play-button")!.addEventListener("click", () => void play());
   // document.getElementById("deselect-all-button")!.addEventListener("click", deselectAllTracks);
   document.getElementById("merge-button")!.addEventListener("click", mergeTracks);
@@ -552,6 +540,15 @@ function openTrackMenu(button: HTMLButtonElement, index: number): void {
       assignment.autoTranspose = !assignment.autoTranspose;
       void refreshTranspose();
     } },
+    { label: assignment.unstrummedNotes ? "Undo strum" : "Strum chords…", enabled: Boolean(assignment.unstrummedNotes) || hasChords(track), run: () => {
+      if (!assignment.unstrummedNotes) { openStrumDialog(index); return; }
+      resetPlayback();
+      undoStrum(track, assignment);
+      state.parsedMidi = { midi: parsed.midi, summaries: summarizeMidi(parsed.midi) };
+      setMessage("Undid strum.");
+      render();
+    } },
+    { label: "Split drumset…", enabled: Boolean(getDrumSplit(track)), run: () => splitDrumTrack(index) },
     ...[1, -1].map(direction => ({
       label: direction === 1 ? "Octave up" : "Octave down",
       enabled: octaveAllowed(track, assignment, direction),
@@ -562,14 +559,21 @@ function openTrackMenu(button: HTMLButtonElement, index: number): void {
         render();
       },
     })),
-    { label: "Strum chordsâ€¦", enabled: hasChords(track), run: () => openStrumDialog(index) },
-    { label: "Split drumsetâ€¦", enabled: Boolean(getDrumSplit(track)), run: () => splitDrumTrack(index) },
   ];
   for (const action of actions) {
     const item = document.createElement("button");
     item.type = "button";
     item.role = "menuitem";
+    const recommended = getDrumSplit(track) ? action.label.startsWith("Split drumset") :
+      !assignment.autoTranspose && trackNeedsTranspose(summary, assignment) && action.label === "Transpose to range";
     item.textContent = action.label;
+    if (recommended) {
+      item.classList.add("suggested-action");
+      const hint = document.createElement("span");
+      hint.className = "menu-hint";
+      hint.textContent = "Suggested";
+      item.append(hint);
+    }
     item.disabled = !action.enabled;
     item.addEventListener("click", () => { menu.hidePopover(); action.run(); });
     menu.append(item);
