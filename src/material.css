@@ -314,7 +314,7 @@ html[data-appearance="material"] .grid > aside > .playback-panel { align-content
 [data-appearance="material"] .status-warning,
 [data-appearance="material"] .range-warning { color: var(--error); }
 [data-appearance="material"] .track-status-detail { display: none; }
-@container track-table (min-width: 1100px) {
+@container track-table (min-width: 900px) {
   [data-appearance="material"] .track-status { display: flex; align-items: center; gap: 8px; min-width: 0; }
   [data-appearance="material"] .track-status:focus-visible { border-radius: 6px; }
   [data-appearance="material"] .track-status-detail {

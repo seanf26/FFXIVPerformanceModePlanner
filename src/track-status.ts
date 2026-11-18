@@ -60,13 +60,12 @@ function createStatus(total: number, outOfRange: number, dropped: number): Track
     : rangeIssue || droppedPercent > CAUTION_THRESHOLD
       ? "caution"
       : "healthy";
-  const rangeText = outOfRange
-    ? `${outOfRange} of ${total} notes out of range. Consider transposing.`
-    : "No notes out of range.";
-  const dropText = dropped
-    ? `${dropped} of ${total} notes (${formatPercent(droppedPercent)}) likely dropped by simultaneous or rapid-note limits.`
-    : "No notes likely dropped by simultaneous or rapid-note limits.";
-  return { level, total, outOfRange, dropped, droppedPercent, tooltip: `${rangeText} ${dropText}` };
+  const notes = total === 1 ? "note" : "notes";
+  const issues: string[] = [];
+  if (outOfRange) issues.push(`${outOfRange} of ${total} ${notes} out of range`);
+  if (dropped) issues.push(`${dropped} of ${total} ${notes} may drop (${formatPercent(droppedPercent)}) due to timing`);
+  const tooltip = issues.length > 1 ? `${issues.join(". ")}.` : issues[0] ?? "All notes playable";
+  return { level, total, outOfRange, dropped, droppedPercent, tooltip };
 }
 
 function formatPercent(percent: number): string {
