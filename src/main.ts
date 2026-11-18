@@ -540,7 +540,7 @@ function openTrackMenu(button: HTMLButtonElement, index: number): void {
       assignment.autoTranspose = !assignment.autoTranspose;
       void refreshTranspose();
     } },
-    { label: assignment.unstrummedNotes ? "Undo strum" : "Strum chords…", enabled: Boolean(assignment.unstrummedNotes) || hasChords(track), run: () => {
+    { label: assignment.unstrummedNotes ? "Undo strum" : "Strum chords\u2026", enabled: Boolean(assignment.unstrummedNotes) || hasChords(track), run: () => {
       if (!assignment.unstrummedNotes) { openStrumDialog(index); return; }
       resetPlayback();
       undoStrum(track, assignment);
@@ -548,7 +548,7 @@ function openTrackMenu(button: HTMLButtonElement, index: number): void {
       setMessage("Undid strum.");
       render();
     } },
-    { label: "Split drumset…", enabled: Boolean(getDrumSplit(track)), run: () => splitDrumTrack(index) },
+    { label: "Split drumset\u2026", enabled: Boolean(getDrumSplit(track)), run: () => splitDrumTrack(index) },
     ...[1, -1].map(direction => ({
       label: direction === 1 ? "Octave up" : "Octave down",
       enabled: octaveAllowed(track, assignment, direction),
