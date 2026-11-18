@@ -1,4 +1,5 @@
 import "./styles.css";
+import { createSnackbar } from "./snackbar";
 import { createConstrainedMidi, PREVIEW_RULES } from "./constrain-midi";
 import { FFXIV_INSTRUMENTS, suggestedInstrument } from "./ffxiv";
 import { parseMidi, summarizeMidi, type ParsedMidi } from "./midi-analysis";
@@ -18,6 +19,7 @@ import { getDrumSplit, splitDrums } from "./split-drums";
 import { hasChords, octaveAllowed, shiftOctave, strumTrack, undoStrum } from "./track-edits";
 import { lightRollColors, materialIcon, materialRollColors, updateMaterialSlider, updateMaterialSliders } from "./material";
 
+const snackbar = createSnackbar();
 const preferences = loadPreferences();
 let lightTheme = preferences.theme === "light";
 document.documentElement.dataset.theme = preferences.theme;
@@ -57,7 +59,7 @@ let renderGeneration = 0;
 let seekDragging = false;
 let playbackUiFrame = 0;
 let hoveredTrack: number | null = null;
-type EditHistoryEntry = { snapshot: MergeSnapshot; checkedTracks: number[]; action: "merge" | "deletion" };
+type EditHistoryEntry = { snapshot: MergeSnapshot; checkedTracks: number[]; action: "merge" | "deletion" | "drumset split" };
 const editHistory: EditHistoryEntry[] = [];
 const checkedTracks = new Set<number>();
 let trackObserver: ResizeObserver | null = null;
@@ -159,7 +161,7 @@ function render(): void {
         </aside>
         <section class="panel tracks-panel"><div class="tracks-heading"><h2>Tracks</h2><div class="track-actions">
           <!-- <button id="deselect-all-button" class="secondary compact" ${selectedTrackCount() && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Deselect all</button> -->
-          <button id="undo-edit-button" class="secondary compact" title="Undo the most recent merge or deletion" ${editHistory.length && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Undo</button>
+          <button id="undo-edit-button" class="secondary compact" title="Undo the most recent merge, deletion or drumset split" ${editHistory.length && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Undo</button>
           <button id="merge-button" class="secondary compact" title="Merge checked tracks" ${checkedTrackCount() >= 2 && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Merge</button>
           <!-- <button id="transpose-checked-button" class="secondary compact" title="Transpose checked tracks into C3–C6" ${checkedTrackCount() && !state.isPreparing && !state.isImporting ? "" : "disabled"}>Transpose checked</button> -->
           <button id="delete-tracks-button" class="secondary compact track-icon-button" type="button" aria-label="Delete checked tracks" title="Delete checked tracks" ${checkedTrackCount() && !state.isPreparing && !state.isImporting ? "" : "disabled"}>${interfaceIcon("delete")}</button>
@@ -249,11 +251,14 @@ function renderTracks(): string {
       <td><div class="track-name" title="${name}">${name}</div></td>
       <td>${summary.noteCount}</td>
       <td>${renderTrackRange(summary, assignment)}</td>
-      <td><select aria-label="Instrument for ${name}" data-action="preset" data-track="${summary.index}">
+      <td><div class="instrument-picker"><select aria-label="Instrument for ${name}" data-action="preset" data-track="${summary.index}">
         ${FFXIV_INSTRUMENTS.map((instrument) => `<option value="${instrument.program}" ${instrument.program === assignment.preset ? "selected" : ""}>${escapeHtml(instrument.name)}</option>`).join("")}
-      </select></td>
+      </select>${expandIcon}</div></td>
       <td class="status-cell">${renderTrackStatus(status)}</td>
-      <td><button type="button" class="secondary track-edit ${suggestion ? "has-suggestion" : ""}" title="${suggestion === "split-drums" ? "Suggested: split drumset" : suggestion ? "Suggested: transpose to range" : "Track options"}" data-action="edit" data-track="${summary.index}" aria-haspopup="menu" aria-expanded="false" aria-label="Edit ${name}" ${state.isPreparing || state.isImporting ? "disabled" : ""}>Edit ${expandIcon}</button></td>
+      <td class="track-actions-cell">${suggestion ? `<div class="track-split-button" role="group" aria-label="Actions for ${name}">
+        <button type="button" class="secondary split-primary" data-action="${suggestion}" data-track="${summary.index}" aria-label="${suggestion === "split-drums" ? "Split drumset" : "Transpose"} ${name}" ${state.isPreparing || state.isImporting ? "disabled" : ""}>${suggestion === "split-drums" ? "Split drumset" : "Transpose"}</button>
+        <button type="button" class="secondary split-menu" data-action="edit" data-track="${summary.index}" aria-haspopup="menu" aria-expanded="false" aria-label="More editing options for ${name}" ${state.isPreparing || state.isImporting ? "disabled" : ""}>${expandIcon}</button>
+      </div>` : `<button type="button" class="secondary track-edit" data-action="edit" data-track="${summary.index}" aria-haspopup="menu" aria-expanded="false" aria-label="Edit ${name}" ${state.isPreparing || state.isImporting ? "disabled" : ""}><span>Edit</span>${expandIcon}</button>`}</td>
     </tr>`;
   }).join("");
   const allChecked = checkedTrackCount() === parsed.summaries.length;
@@ -277,6 +282,7 @@ async function importMidi(file: File): Promise<void> {
   resetPlayback();
   const ticket = generation;
   state.isImporting = true;
+  snackbar.dismiss();
   setMessage(`Loading ${file.name}...`);
   render();
   try {
@@ -299,7 +305,9 @@ async function importMidi(file: File): Promise<void> {
         autoTranspose: false,
       };
     }
-    setMessage(`Loaded ${file.name}.`);
+    const count = parsed.summaries.length;
+    setMessage(`${count} instrument ${count === 1 ? "track" : "tracks"} loaded.`);
+    snackbar.show(state.message);
   } catch (error) {
     if (ticket === generation) setMessage(errorMessage(error), true);
   } finally {
@@ -503,13 +511,28 @@ function bindEvents(): void {
         return;
       }
       const assignment = state.assignments[index];
-      if (action === "preset") assignment.preset = Number(control.value);
+      if (action === "preset") {
+        snackbar.dismiss();
+        assignment.preset = Number(control.value);
+      }
       player.updateAssignments(state.assignments);
       render();
     });
   });
   root.querySelectorAll<HTMLButtonElement>('button[data-action="edit"]').forEach(button => {
     button.addEventListener("click", () => openTrackMenu(button, Number(button.dataset.track)));
+  });
+  root.querySelectorAll<HTMLButtonElement>("button.split-primary").forEach(button => {
+    button.addEventListener("click", () => {
+      if (state.isPreparing || state.isImporting) return;
+      const index = Number(button.dataset.track);
+      if (button.dataset.action === "split-drums") splitDrumTrack(index);
+      else {
+        state.assignments[index].autoTranspose = true;
+        snackbar.show("Transposed track to range.");
+        void refreshTranspose();
+      }
+    });
   });
   document.getElementById("play-button")!.addEventListener("click", () => void play());
   // document.getElementById("deselect-all-button")!.addEventListener("click", deselectAllTracks);
@@ -538,6 +561,7 @@ function openTrackMenu(button: HTMLButtonElement, index: number): void {
   const actions = [
     { label: assignment.autoTranspose ? "Undo transpose" : "Transpose to range", enabled: assignment.autoTranspose || trackNeedsTranspose(summary, assignment), run: () => {
       assignment.autoTranspose = !assignment.autoTranspose;
+      snackbar.show(assignment.autoTranspose ? "Transposed track to range." : "Undid transpose.");
       void refreshTranspose();
     } },
     { label: assignment.unstrummedNotes ? "Undo strum" : "Strum chords\u2026", enabled: Boolean(assignment.unstrummedNotes) || hasChords(track), run: () => {
@@ -546,6 +570,7 @@ function openTrackMenu(button: HTMLButtonElement, index: number): void {
       undoStrum(track, assignment);
       state.parsedMidi = { midi: parsed.midi, summaries: summarizeMidi(parsed.midi) };
       setMessage("Undid strum.");
+      snackbar.show("Undid strum.");
       render();
     } },
     { label: "Split drumset\u2026", enabled: Boolean(getDrumSplit(track)), run: () => splitDrumTrack(index) },
@@ -554,6 +579,7 @@ function openTrackMenu(button: HTMLButtonElement, index: number): void {
       enabled: octaveAllowed(track, assignment, direction),
       run: () => {
         shiftOctave(track, assignment, direction);
+        snackbar.show(direction === 1 ? "Moved track up one octave." : "Moved track down one octave.");
         state.parsedMidi = { midi: parsed.midi, summaries: summarizeMidi(parsed.midi) };
         void refreshTranspose();
       },
@@ -620,6 +646,7 @@ function openStrumDialog(index: number): void {
     resetPlayback();
     state.parsedMidi = { midi: result.midi, summaries: summarizeMidi(result.midi) };
     setMessage(`Strummed ${result.changed} chords; removed ${result.removed} notes.`);
+    snackbar.show(state.message);
     dialog.close();
     render();
   });
@@ -781,6 +808,7 @@ function mergeTracks(): void {
     checkedTracks.clear();
     checkedTracks.add(result.mergedIndex);
     setMessage(`Merged ${result.count} tracks.`);
+    showEditSnackbar();
   } catch (error) { setMessage(errorMessage(error), true); }
   render();
 }
@@ -803,6 +831,7 @@ function deleteCheckedTracks(): void {
   state.assignments = result.assignments;
   checkedTracks.clear();
   setMessage(`Deleted ${result.count} ${result.count === 1 ? "track" : "tracks"}.`);
+  showEditSnackbar();
   render();
 }
 function splitDrumTrack(index: number): void {
@@ -825,18 +854,30 @@ function splitDrumTrack(index: number): void {
     if (!state.parsedMidi) return;
     dialog.close();
     try {
+      const snapshot = snapshotMergeState(state.parsedMidi.midi, state.assignments);
       const result = splitDrums(state.parsedMidi, state.assignments, index);
+      editHistory.push({ snapshot, checkedTracks: [...checkedTracks], action: "drumset split" });
       resetPlayback();
       pianoRoll?.highlightTrack(null);
       state.parsedMidi = result.parsed;
       state.assignments = result.assignments;
       checkedTracks.clear();
       setMessage(`Created ${counts}.${omitted}`);
+      showEditSnackbar();
     } catch (error) { setMessage(errorMessage(error), true); }
     render();
   });
   document.body.append(dialog);
   dialog.showModal();
+}
+function showEditSnackbar(): void {
+  const entry = editHistory.at(-1);
+  snackbar.show(state.message, () => {
+    if (entry === editHistory.at(-1) && !state.isImporting) {
+      undoEdit();
+      document.getElementById("undo-edit-button")?.focus({ preventScroll: true });
+    }
+  });
 }
 function undoEdit(): void {
   const entry = editHistory.pop();
@@ -848,6 +889,7 @@ function undoEdit(): void {
   checkedTracks.clear();
   for (const index of entry.checkedTracks) checkedTracks.add(index);
   setMessage(`Undid ${entry.action}.`);
+  snackbar.show(state.message);
   render();
 }
 function canExport(): boolean {
@@ -866,6 +908,7 @@ function exportMidi(): void {
     link.href = url; link.download = exported.filename; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
     setMessage(`Exported ${exported.filename}.`);
+    snackbar.show(state.message);
   } catch (error) { setMessage(errorMessage(error), true); }
   render();
 }
