@@ -7,6 +7,22 @@ export function trackChannel(position: number): number {
 
 export function routeTracks(bytes: Uint8Array, durationTicks = 0): Uint8Array {
   const midi = parseMidi(bytes);
+  if (durationTicks > 0) {
+    const conductor = midi.tracks[0];
+    // Use the full preview timeline even if the source has its own loop markers.
+    conductor.forEach((event, index) => {
+      if (event.type === "marker" && /^(start|loopstart|loopend)$/i.test(event.text.trim())) {
+        conductor[index] = { ...event, type: "text" };
+      }
+    });
+    conductor.unshift({ deltaTime: 0, meta: true, type: "marker", text: "loopstart" });
+    const ticks = conductor.reduce((sum, event) => sum + event.deltaTime, 0);
+    const end = conductor[conductor.length - 1];
+    conductor.splice(conductor.length - 1, 0, {
+      deltaTime: end.deltaTime + Math.max(0, durationTicks - ticks), meta: true, type: "marker", text: "loopend",
+    });
+    end.deltaTime = 0;
+  }
   for (const [position, events] of midi.tracks.slice(1).entries()) {
     const channel = trackChannel(position);
     for (const event of events) {

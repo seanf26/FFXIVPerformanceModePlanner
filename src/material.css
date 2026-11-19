@@ -77,17 +77,12 @@ html[data-appearance="material"][data-theme="light"] {
   align-items: start;
   gap: 12px;
 }
-[data-appearance="material"] .grid > aside:not(:has(.export-options[open])) {
-  grid-auto-rows: 1fr;
-  align-items: stretch;
-}
 [data-appearance="material"] .panel,
 [data-appearance="material"] .piano-roll { padding: 12px 16px; border: 0; border-radius: 16px; background: var(--surface-container); }
 [data-appearance="material"] .panel h2,
 [data-appearance="material"] .piano-roll h2 { margin: 0; font-size: 18px; line-height: 24px; font-weight: 600; }
 [data-appearance="material"] .files-panel,
-[data-appearance="material"] .playback-panel { min-width: 0; align-content: start; gap: 10px; }
-html[data-appearance="material"] .grid > aside > .playback-panel { align-content: space-between; }
+[data-appearance="material"] .playback-panel { min-width: 0; align-content: start; gap: 10px; padding-block-end: 8px; }
 [data-appearance="material"] .file-picker { padding: 0 9px 0 0; min-height: 36px; border: 0; border-radius: 999px; background: var(--surface-low); }
 [data-appearance="material"] .file-picker .file-picker-button {
   gap: 6px;
@@ -99,18 +94,18 @@ html[data-appearance="material"] .grid > aside > .playback-panel { align-content
   color: var(--on-primary-container);
 }
 [data-appearance="material"] .file-picker:hover .file-picker-button { background: var(--surface-high); }
-[data-appearance="material"] .export-options { padding: 0; }
-[data-appearance="material"] .export-options summary {
+[data-appearance="material"] :is(.export-options, .playback-options) summary {
   justify-content: space-between;
   min-height: 36px;
   padding-inline: 8px;
   border-radius: 8px;
   font-size: var(--text-body-size);
 }
-[data-appearance="material"] .export-options summary:hover { background: var(--surface-high); }
-[data-appearance="material"] .export-options summary > .material-icon { display: inline-grid; }
-[data-appearance="material"] .export-options[open] summary > .material-icon { transform: rotate(180deg); }
+[data-appearance="material"] :is(.export-options, .playback-options) summary:hover { background: var(--surface-high); }
+[data-appearance="material"] :is(.export-options, .playback-options) summary > .material-icon { display: inline-grid; }
+[data-appearance="material"] :is(.export-options, .playback-options)[open] summary > .material-icon { transform: rotate(180deg); }
 [data-appearance="material"] .export-options-fields { padding-inline: 8px; }
+[data-appearance="material"] .export-options[open] .export-options-fields { padding-block: 5px 4px; }
 
 [data-appearance="material"] button {
   min-height: 36px;
@@ -129,8 +124,8 @@ html[data-appearance="material"] .grid > aside > .playback-panel { align-content
 [data-appearance="material"] .track-actions button[aria-pressed="true"] { background: var(--primary-container); color: var(--on-primary-container); border-color: transparent; }
 [data-appearance="material"] :is(button, select, input, summary, .roll-viewport):focus-visible,
 [data-appearance="material"] .file-picker:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
-[data-appearance="material"] :is(label, .export-options summary, .playback-seek output) { color: var(--on-surface-variant); font-weight: 400; }
-[data-appearance="material"] .export-options label { font-size: var(--text-body-size); }
+[data-appearance="material"] :is(label, :is(.export-options, .playback-options) summary, .playback-seek output) { color: var(--on-surface-variant); font-weight: 400; }
+[data-appearance="material"] :is(.export-options label, .playback-options-fields > label, .playback-tempo > label) { font-size: var(--text-body-size); }
 [data-appearance="material"] :is(.eyebrow, .tempo-control, .playback-seek output, .tracks-heading strong, .composition-status, .piano-roll label, .roll-clock) {
   font-size: var(--text-detail-size);
 }
@@ -183,7 +178,7 @@ html[data-appearance="material"] .grid > aside > .playback-panel { align-content
 
 [data-appearance="material"] .playback-controls { align-items: center; flex-wrap: wrap; gap: 6px; }
 [data-appearance="material"] .playback-controls .transport { gap: 2px; }
-[data-appearance="material"] .playback-state { margin: 0; color: var(--on-surface-variant); font-size: var(--text-detail-size); }
+[data-appearance="material"] .playback-state { display: flex; justify-content: space-between; gap: 8px; margin: 0; color: var(--on-surface-variant); font-size: var(--text-detail-size); }
 [data-appearance="material"] .playback-controls .icon-button {
   width: 44px;
   height: 44px;
@@ -193,7 +188,7 @@ html[data-appearance="material"] .grid > aside > .playback-panel { align-content
 [data-appearance="material"] .volume-popover { z-index: 3; border-color: var(--outline); background: var(--surface-high); }
 [data-appearance="material"] .tempo-control { display: flex; align-items: center; gap: 4px; justify-self: start; }
 [data-appearance="material"] .tempo-stepper {
-  --stepper-height: 28px;
+  --stepper-height: 36px;
   display: flex;
   align-items: center;
   border-radius: 999px;
@@ -202,7 +197,7 @@ html[data-appearance="material"] .grid > aside > .playback-panel { align-content
 [data-appearance="material"] .tempo-stepper button {
   display: grid;
   place-items: center;
-  width: 20px;
+  width: var(--stepper-height);
   min-height: var(--stepper-height);
   padding: 0;
   background: transparent;
@@ -210,7 +205,7 @@ html[data-appearance="material"] .grid > aside > .playback-panel { align-content
 }
 [data-appearance="material"] .tempo-value { display: flex; align-items: center; gap: 3px; }
 [data-appearance="material"] .tempo-stepper input {
-  width: 3.25ch;
+  width: 6ch;
   height: var(--stepper-height);
   border: 0;
   padding: 1px 0 0;
@@ -222,7 +217,7 @@ html[data-appearance="material"] .grid > aside > .playback-panel { align-content
   text-align: center;
 }
 @supports (field-sizing: content) {
-  [data-appearance="material"] .tempo-stepper input { field-sizing: content; width: auto; min-width: 2ch; max-width: 6ch; }
+  [data-appearance="material"] .tempo-stepper input { field-sizing: content; width: auto; min-width: 4ch; max-width: 6ch; }
 }
 [data-appearance="material"] .tempo-stepper label {
   position: relative;
@@ -385,7 +380,6 @@ html[data-appearance="material"] :is(.table-wrap, .roll-viewport) {
 
 @media (min-width: 980px) {
   [data-appearance="material"] .grid { grid-template-columns: 300px minmax(0, 1fr); align-items: start; }
-  [data-appearance="material"] .playback-controls .tempo-control { margin-inline: auto; }
 }
 
 @media (min-width: 650px) and (width < 980px) {
@@ -431,7 +425,7 @@ html[data-appearance="material"] :is(.table-wrap, .roll-viewport) {
 }
 
 @media (pointer: coarse) {
-  [data-appearance="material"] :is(button, .file-picker, .file-picker .file-picker-button, .export-options summary) { min-height: 44px; }
+  [data-appearance="material"] :is(button, .file-picker, .file-picker .file-picker-button, :is(.export-options, .playback-options) summary) { min-height: 44px; }
   [data-appearance="material"] .track-actions .track-icon-button { width: 44px; }
   [data-appearance="material"] .table-wrap { --track-control-height: 44px; }
   [data-appearance="material"] .tempo-stepper { --stepper-height: 44px; }
@@ -594,3 +588,10 @@ html[data-appearance="material"] :is(.table-wrap, .roll-viewport) {
 [data-appearance="material"] .range-octave-shifted { color: #8bdae5; cursor: help; }
 [data-appearance="material"][data-theme="light"] .range-octave-shifted { color: #006875; }
 [data-appearance="material"] .range-octave-shifted:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+
+[data-appearance="material"] .playback-options-fields { display: grid; gap: 10px; padding: 4px 8px; }
+[data-appearance="material"] .playback-tempo { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; }
+[data-appearance="material"] #playback-options-tempo { white-space: nowrap; font-variant-numeric: tabular-nums; }
+[data-appearance="material"] :is(.export-options, .playback-options) { border-top: 1px solid var(--divider); padding-top: 4px; }
+[data-appearance="material"] .playback-tempo:has(#tempo-input:disabled) { opacity: .5; }
+[data-appearance="material"] .playback-options summary { gap: 8px; }

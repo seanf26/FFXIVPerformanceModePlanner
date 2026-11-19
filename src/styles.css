@@ -123,9 +123,9 @@ h1 {
 }
 
 .export-options { padding-top: 2px; }
-.export-options summary { display: flex; align-items: center; gap: 6px; color: #d8d3c9; font-size: .82rem; font-weight: 700; cursor: pointer; list-style: none; }
-.export-options summary::-webkit-details-marker { display: none; }
-.export-options summary > span { display: inline-block; font-size: .68rem; transition: transform .15s ease; }
+:is(.export-options, .playback-options) summary { display: flex; align-items: center; gap: 6px; color: #d8d3c9; font-size: .82rem; font-weight: 700; cursor: pointer; list-style: none; }
+:is(.export-options, .playback-options) summary::-webkit-details-marker { display: none; }
+:is(.export-options, .playback-options) summary > span { display: inline-block; font-size: .68rem; transition: transform .15s ease; }
 .export-options[open] summary > span { transform: rotate(90deg); }
 .export-options-drawer {
   display: grid;
@@ -136,12 +136,12 @@ h1 {
 .export-options[open] .export-options-drawer { grid-template-rows: 1fr; opacity: 1; }
 .export-options-fields { display: grid; min-height: 0; overflow: hidden; gap: 7px; padding-top: 0; transition: padding-top .2s ease; }
 .export-options[open] .export-options-fields { padding-top: 9px; }
-.export-options label { display: flex; align-items: center; gap: 7px; font-size: .78rem; }
-.export-options input { margin: 0; accent-color: #f0c36a; }
+:is(.export-options label, .playback-options-fields > label) { display: flex; align-items: center; gap: 7px; font-size: .78rem; }
+:is(.export-options input, #loop-playback) { margin: 0; accent-color: #f0c36a; }
 @media (prefers-reduced-motion: reduce) {
   .export-options-drawer,
   .export-options-fields,
-  .export-options summary > span { transition: none; }
+  :is(.export-options, .playback-options) summary > span { transition: none; }
 }
 
 .grid > aside {

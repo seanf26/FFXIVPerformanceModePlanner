@@ -14,7 +14,7 @@ import { loadPreferences, savePreferences } from "./preferences";
 import { formatTime } from "./time";
 import { createMidiExport } from "./midi-export";
 import { originalBpm, tempoRate, MIN_BPM, MAX_BPM } from "./tempo";
-import { deleteTracks, mergeSelectedTracks, snapshotMergeState, type MergeSnapshot } from "./merge-tracks";
+import { deleteTracks, mergeSelectedTracks, restoreTrackEdit, snapshotMergeState, type MergeSnapshot } from "./merge-tracks";
 import { getDrumSplit, splitDrums } from "./split-drums";
 import { hasChords, octaveAllowed, shiftOctave, strumTrack, undoStrum } from "./track-edits";
 import { lightRollColors, materialIcon, materialRollColors, updateMaterialSlider, updateMaterialSliders } from "./material";
@@ -45,6 +45,8 @@ const state = {
   isPreparing: false,
   isImporting: false,
   startTime: 0,
+  playbackOptionsOpen: false,
+  loopPlayback: false,
   sourceBpm: 120,
   targetBpm: 120,
   volume: preferences.volume,
@@ -59,7 +61,7 @@ let renderGeneration = 0;
 let seekDragging = false;
 let playbackUiFrame = 0;
 let hoveredTrack: number | null = null;
-type EditHistoryEntry = { snapshot: MergeSnapshot; checkedTracks: number[]; action: "merge" | "deletion" | "drumset split" };
+type EditHistoryEntry = { snapshot: MergeSnapshot; indexMap: Record<number, number>; checkedTracks: number[]; action: "merge" | "deletion" | "drumset split" };
 const editHistory: EditHistoryEntry[] = [];
 const checkedTracks = new Set<number>();
 let trackObserver: ResizeObserver | null = null;
@@ -149,14 +151,20 @@ function render(): void {
                   <div id="volume-popover" class="volume-popover" hidden><input id="volume-input" type="range" min="0" max="100" step="1" value="${Math.round(state.volume * 100)}" aria-label="Playback volume" /></div>
                 </div>
               </div>
-              ${renderTempoControl()}
             </div>
             <div class="playback-seek">
               <output id="seek-current" aria-label="Elapsed time">${formatTime(playbackTime())}</output>
               <input id="seek-input" type="range" min="0" max="${state.parsedMidi?.midi.duration ?? 0}" step="0.01" value="${playbackTime()}" aria-label="Playback position" ${state.parsedMidi ? "" : "disabled"} />
               <output id="seek-total" aria-label="Total time">${formatTime(state.parsedMidi?.midi.duration ?? 0)}</output>
             </div>
-            <p class="playback-state">${playbackState()}</p>
+            <p class="playback-state"><span>${playbackState()}</span>${state.parsedMidi ? `<span id="playback-options-tempo">${formatBpm(state.targetBpm)} BPM</span>` : ""}</p>
+            <details class="playback-options" ${state.playbackOptionsOpen ? "open" : ""}>
+              <summary>Playback options ${expandIcon}</summary>
+              <div class="playback-options-fields">
+                <div class="playback-tempo"><label for="tempo-input">Tempo</label>${renderTempoControl()}</div>
+                <label><input id="loop-playback" type="checkbox" ${state.loopPlayback ? "checked" : ""} /> Loop playback</label>
+              </div>
+            </details>
           </div>
         </aside>
         <section class="panel tracks-panel"><div class="tracks-heading"><h2>Tracks</h2><div class="track-actions">
@@ -177,9 +185,10 @@ function render(): void {
   if (trackViewport) {
     const table = trackViewport.querySelector("table")!;
     const rows = table.tBodies[0].rows;
-    if (rows.length > 6) {
+    const visibleRows = 8;
+    if (rows.length > visibleRows) {
       const sizeTracks = () => {
-        const bottom = rows[5].getBoundingClientRect().bottom;
+        const bottom = rows[visibleRows - 1].getBoundingClientRect().bottom;
         const scrollbar = trackViewport.offsetHeight - trackViewport.clientHeight;
         trackViewport.style.maxHeight = `${bottom - table.getBoundingClientRect().top + scrollbar}px`;
       };
@@ -349,6 +358,7 @@ async function play(): Promise<void> {
       const bytes = createConstrainedMidi(midi, { assignments: audible, ...PREVIEW_RULES,
         minGapMs: PREVIEW_RULES.minGapMs * tempoRate(state.targetBpm, state.sourceBpm), autoTranspose: false });
       session.setPlaybackRate(tempoRate(state.targetBpm, state.sourceBpm));
+      session.setLoop(state.loopPlayback);
       await session.play(bytes, name, assignments, state.startTime);
     }
     if (ticket !== generation) return;
@@ -400,6 +410,13 @@ function bindEvents(): void {
     });
   }
   const exportOptions = document.querySelector<HTMLDetailsElement>(".export-options")!;
+  const playbackOptions = root.querySelector<HTMLDetailsElement>(".playback-options")!;
+  playbackOptions.addEventListener("toggle", () => { state.playbackOptionsOpen = playbackOptions.open; });
+  const loopPlayback = root.querySelector<HTMLInputElement>("#loop-playback")!;
+  loopPlayback.addEventListener("change", () => {
+    state.loopPlayback = loopPlayback.checked;
+    player.setLoop(state.loopPlayback);
+  });
   exportOptions.addEventListener("toggle", () => {
     state.exportOptions.expanded = exportOptions.open;
     savePreferences({ exportOptions: state.exportOptions });
@@ -445,6 +462,8 @@ function bindEvents(): void {
   const applyTempo = (bpm: number, updateField = true) => {
     state.targetBpm = bpm === state.sourceBpm ? bpm : Math.min(MAX_BPM, Math.max(MIN_BPM, bpm));
     if (updateField) tempoInput.value = formatBpm(state.targetBpm);
+    const tempoReadout = root.querySelector("#playback-options-tempo");
+    if (tempoReadout) tempoReadout.textContent = `${formatBpm(state.targetBpm)} BPM`;
     player.setPlaybackRate(tempoRate(state.targetBpm, state.sourceBpm));
     tempoReset.disabled = !canResetTempo();
     tempoDown.disabled = !canStepTempo(-1);
@@ -564,7 +583,7 @@ function openTrackMenu(button: HTMLButtonElement, index: number): void {
       snackbar.show(assignment.autoTranspose ? "Transposed track to range." : "Undid transpose.");
       void refreshTranspose();
     } },
-    { label: assignment.unstrummedNotes ? "Undo strum" : "Strum chords\u2026", enabled: Boolean(assignment.unstrummedNotes) || hasChords(track), run: () => {
+    { label: assignment.unstrummedNotes ? "Undo strum" : "Strum chords\u2026", enabled: Boolean(assignment.unstrummedNotes) || hasChords(track, tempoRate(state.targetBpm, state.sourceBpm), state.parsedMidi!.midi.header.ppq), run: () => {
       if (!assignment.unstrummedNotes) { openStrumDialog(index); return; }
       resetPlayback();
       undoStrum(track, assignment);
@@ -631,13 +650,12 @@ function openTrackMenu(button: HTMLButtonElement, index: number): void {
 
 function openStrumDialog(index: number): void {
   const parsed = state.parsedMidi!;
-  const result = strumTrack(parsed.midi, index, tempoRate(state.targetBpm, state.sourceBpm));
+  const result = strumTrack(parsed.midi, index, tempoRate(state.targetBpm, state.sourceBpm), state.assignments[index]);
   const dialog = document.createElement("dialog");
   dialog.className = "track-edit-dialog";
   dialog.setAttribute("aria-labelledby", "strum-title");
   dialog.innerHTML = `<h2 id="strum-title">Strum chords</h2>
-    <p>Step through ${result.changed} chords from low to high, then hold the last note.</p>
-    <p>Remove ${result.removed} notes to leave room for the hold.</p>
+    <p>Strum ${result.changed} chords and remove ${result.removed} notes that duplicate or compete with other attacks.</p>
     <div class="dialog-actions"><button class="secondary" data-strum="cancel">Cancel</button><button data-strum="apply">Apply</button></div>`;
   dialog.querySelector('[data-strum="apply"]')!.addEventListener("click", () => {
     state.assignments[index].unstrummedNotes = parsed.midi.tracks[index].notes.map(
@@ -680,6 +698,7 @@ async function refreshTranspose(): Promise<void> {
     const audible = Object.fromEntries(Object.entries(state.assignments).map(([key, a]) => [key, { ...a, selected: true }]));
     const bytes = createConstrainedMidi(state.parsedMidi!.midi, {
       assignments: audible, ...PREVIEW_RULES, autoTranspose: false,
+      minGapMs: PREVIEW_RULES.minGapMs * tempoRate(state.targetBpm, state.sourceBpm),
     });
     await session.play(bytes, state.filename!, state.assignments, time, paused);
   } catch (error) {
@@ -802,7 +821,7 @@ function mergeTracks(): void {
     const snapshot = snapshotMergeState(state.parsedMidi.midi, state.assignments);
     const result = mergeSelectedTracks(state.parsedMidi, state.assignments, checkedTracks);
     resetPlayback();
-    editHistory.push({ snapshot, checkedTracks: [...checkedTracks], action: "merge" });
+    editHistory.push({ snapshot, indexMap: result.indexMap, checkedTracks: [...checkedTracks], action: "merge" });
     state.parsedMidi = result.parsed;
     state.assignments = result.assignments;
     checkedTracks.clear();
@@ -826,7 +845,7 @@ function deleteCheckedTracks(): void {
   } else {
     resetPlayback();
   }
-  editHistory.push({ snapshot, checkedTracks: checked, action: "deletion" });
+  editHistory.push({ snapshot, indexMap: result.indexMap, checkedTracks: checked, action: "deletion" });
   state.parsedMidi = result.parsed;
   state.assignments = result.assignments;
   checkedTracks.clear();
@@ -856,7 +875,7 @@ function splitDrumTrack(index: number): void {
     try {
       const snapshot = snapshotMergeState(state.parsedMidi.midi, state.assignments);
       const result = splitDrums(state.parsedMidi, state.assignments, index);
-      editHistory.push({ snapshot, checkedTracks: [...checkedTracks], action: "drumset split" });
+      editHistory.push({ snapshot, indexMap: result.indexMap, checkedTracks: [...checkedTracks], action: "drumset split" });
       resetPlayback();
       pianoRoll?.highlightTrack(null);
       state.parsedMidi = result.parsed;
@@ -880,12 +899,13 @@ function showEditSnackbar(): void {
   });
 }
 function undoEdit(): void {
+  if (!state.parsedMidi || state.isPreparing || state.isImporting) return;
   const entry = editHistory.pop();
   if (!entry) return;
   resetPlayback();
-  const { snapshot } = entry;
-  state.parsedMidi = { midi: snapshot.midi, summaries: summarizeMidi(snapshot.midi) };
-  state.assignments = snapshot.assignments;
+  const result = restoreTrackEdit(entry.snapshot, { midi: state.parsedMidi.midi, assignments: state.assignments }, entry.indexMap);
+  state.parsedMidi = result.parsed;
+  state.assignments = result.assignments;
   checkedTracks.clear();
   for (const index of entry.checkedTracks) checkedTracks.add(index);
   setMessage(`Undid ${entry.action}.`);
