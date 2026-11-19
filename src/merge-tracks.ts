@@ -18,6 +18,14 @@ export function snapshotMergeState(midi: Midi, assignments: Record<number, Track
   return { midi: cloneMidi(midi), assignments: structuredClone(assignments) };
 }
 
+export function restoreTrackEdit(snapshot: MergeSnapshot, current: MergeSnapshot, indexMap: Record<number, number>) {
+  for (const [oldIndex, newIndex] of Object.entries(indexMap)) {
+    snapshot.midi.tracks[Number(oldIndex)] = current.midi.tracks[newIndex];
+    if (current.assignments[newIndex]) snapshot.assignments[Number(oldIndex)] = current.assignments[newIndex];
+  }
+  return { parsed: { midi: snapshot.midi, summaries: summarizeMidi(snapshot.midi) }, assignments: snapshot.assignments };
+}
+
 export function mergeSelectedTracks(parsed: ParsedMidi, assignments: Record<number, TrackAssignment>, modificationSelection?: Set<number>) {
   const selected = parsed.summaries.map(s => s.index).filter(index =>
     modificationSelection ? modificationSelection.has(index) : isTrackSelected(assignments[index]));
@@ -44,6 +52,7 @@ export function mergeSelectedTracks(parsed: ParsedMidi, assignments: Record<numb
 
   const removed = new Set(selected.slice(1));
   const mergedAssignments: Record<number, TrackAssignment> = {};
+  const indexMap: Record<number, number> = {};
   const remaining = [];
   let mergedIndex = first;
   for (const [oldIndex, track] of midi.tracks.entries()) {
@@ -58,12 +67,13 @@ export function mergeSelectedTracks(parsed: ParsedMidi, assignments: Record<numb
         transpose: 0,
         autoTranspose: false,
       };
-    } else if (assignments[oldIndex]) {
-      mergedAssignments[newIndex] = structuredClone(assignments[oldIndex]);
+    } else {
+      indexMap[oldIndex] = newIndex;
+      if (assignments[oldIndex]) mergedAssignments[newIndex] = structuredClone(assignments[oldIndex]);
     }
   }
   midi.tracks = remaining;
-  return { parsed: { midi, summaries: summarizeMidi(midi) }, assignments: mergedAssignments, count: selected.length, mergedIndex };
+  return { parsed: { midi, summaries: summarizeMidi(midi) }, assignments: mergedAssignments, count: selected.length, mergedIndex, indexMap };
 }
 
 export function deleteTracks(parsed: ParsedMidi, assignments: Record<number, TrackAssignment>, modificationSelection: Set<number>) {
