@@ -5,7 +5,7 @@ export function bindTrackSelection(root: HTMLElement, toggle: (index: number) =>
       toggle(Number(row.dataset.track));
     };
     row.addEventListener("click", event => {
-      const control = (event.target as HTMLElement).closest('input, select, button, a, label, [tabindex]');
+      const control = (event.target as HTMLElement).closest('input, select, button, a, label, [tabindex]:not(.track-status)');
       if (control && control !== row) return;
       activate();
     });
