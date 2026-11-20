@@ -18,6 +18,7 @@ export class SpessaPlayer {
   private channels = new Map<number, number>();
   private cancelLoad: (() => void) | null = null;
   private rate = 1;
+  private loop = false;
   private volume = 1;
   onEnded: (() => void) | null = null;
 
@@ -44,6 +45,11 @@ export class SpessaPlayer {
     if (!Number.isFinite(rate) || rate <= 0) return;
     this.rate = rate;
     if (this.sequencer) this.sequencer.playbackRate = rate;
+  }
+
+  setLoop(enabled: boolean): void {
+    this.loop = enabled;
+    if (this.sequencer) this.sequencer.loopCount = enabled ? -1 : 0;
   }
 
   setVolume(volume: number): void {
@@ -82,6 +88,7 @@ export class SpessaPlayer {
     });
     this.assertActive();
     this.updateAssignments(assignments);
+    seq.loopCount = this.loop ? -1 : 0;
     seq.playbackRate = this.rate;
     seq.currentTime = startTime;
     if (!paused) seq.play();

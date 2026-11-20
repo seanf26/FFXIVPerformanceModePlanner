@@ -47,14 +47,17 @@ export function splitDrums(parsed: ParsedMidi, assignments: Record<number, Track
   midi.tracks.splice(index, 1, ...tracks);
 
   const nextAssignments: Record<number, TrackAssignment> = {};
-  for (const [key, assignment] of Object.entries(assignments)) {
-    const oldIndex = Number(key);
-    if (oldIndex !== index) nextAssignments[oldIndex < index ? oldIndex : oldIndex + tracks.length - 1] = assignment;
+  const indexMap: Record<number, number> = {};
+  for (const oldIndex of parsed.midi.tracks.keys()) {
+    if (oldIndex === index) continue;
+    const newIndex = oldIndex < index ? oldIndex : oldIndex + tracks.length - 1;
+    indexMap[oldIndex] = newIndex;
+    if (assignments[oldIndex]) nextAssignments[newIndex] = assignments[oldIndex];
   }
   split.parts.forEach((part, i) => {
     nextAssignments[index + i] = {
       selected: assignments[index].selected, preset: part.program, transpose: 0, autoTranspose: false,
     };
   });
-  return { parsed: { midi, summaries: summarizeMidi(midi) }, assignments: nextAssignments };
+  return { parsed: { midi, summaries: summarizeMidi(midi) }, assignments: nextAssignments, indexMap };
 }
